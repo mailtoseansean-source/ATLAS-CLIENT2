@@ -60,6 +60,8 @@ public final class SurvivalAssist {
     public int eatAt = 14;
     /** A fall counts once the feet are this many blocks below the work level. */
     public int fallMargin = 0;
+    /** After climbing back up, walk straight back toward home (tunnels). Area mode finds its own way instead. */
+    public boolean returnAfterClimb = true;
 
     public void reset(MinecraftClient mc) {
         releaseKeys(mc);
@@ -146,6 +148,10 @@ public final class SurvivalAssist {
         }
         // Under water and running out of air: swim up (hold jump) until the head is out.
         if (p.isSubmergedInWater() && p.getAir() < p.getMaxAir() * 2 / 3) {
+            // Drop whatever it was doing: a held sneak key (filling, pillaring) sinks the player.
+            if (phase == Phase.FILLING && softFill) { fillFailed = true; phase = Phase.IDLE; }
+            mc.options.sneakKey.setPressed(false);
+            mc.options.forwardKey.setPressed(false);
             mc.options.jumpKey.setPressed(true);
             swimming = true;
             return true;
@@ -360,7 +366,7 @@ public final class SurvivalAssist {
         BlockPos feet = p.getBlockPos();
         if (feet.getY() >= floorY && p.isOnGround()) {
             releaseKeys(mc);
-            phase = Phase.RETURNING;
+            phase = returnAfterClimb ? Phase.RETURNING : Phase.IDLE;
             phaseTicks = 0;
             return;
         }
@@ -460,11 +466,19 @@ public final class SurvivalAssist {
         double rad = Math.toRadians(yaw);
         double ax = p.getX() - Math.sin(rad) * 0.7, az = p.getZ() + Math.cos(rad) * 0.7;
         BlockPos at = BlockPos.ofFloored(ax, p.getY() + 0.1, az);
-        for (BlockPos c : new BlockPos[]{at, at.up(), at.down()}) {
-            BlockState s = mc.world.getBlockState(c);
-            if (s.getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA) || Registries.BLOCK.getId(s.getBlock()).getPath().endsWith("fire")) return true;
+        if (dangerous(mc.world.getBlockState(at)) || dangerous(mc.world.getBlockState(at.up()))) return true;
+        // ... and no drop that ends in lava: look down past air until something solid or a fluid.
+        for (int d = 1; d <= 12; d++) {
+            BlockState s = mc.world.getBlockState(at.down(d));
+            if (dangerous(s)) return true;
+            if (!s.isAir() && !s.isReplaceable()) return false;
+            if (!s.getFluidState().isEmpty()) return false; // water breaks the fall
         }
         return false;
+    }
+
+    private static boolean dangerous(BlockState s) {
+        return s.getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA) || Registries.BLOCK.getId(s.getBlock()).getPath().endsWith("fire");
     }
 
     /** Breaks a block with the fastest tool carried. Returns false if it cannot be broken. */

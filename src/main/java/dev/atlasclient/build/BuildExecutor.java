@@ -366,8 +366,24 @@ public final class BuildExecutor {
         Set<Long> digSet = pendingDigCells(ex);
         WorkWorld ww = new WorkWorld(digSet);
         Pathfinder pf = new Pathfinder(movement.fenced(ww)).maxNodes(cfg.pathNodes()).maxDrop(movement.maxDrop());
-        Pathfinder.Result r = pf.find(new Pathfinder.Node(p.getBlockX(), p.getBlockY(), p.getBlockZ()), goal);
+        Pathfinder.Node startNode = new Pathfinder.Node(p.getBlockX(), p.getBlockY(), p.getBlockZ());
+        Pathfinder.Result r = pf.find(startNode, goal);
         List<Pathfinder.Node> path = r.path();
+        int savedTop = bridgeBox == null ? 0 : bridgeBox[3];
+        if (path.size() < 2 && bridgeBox != null && p.getBlockY() - 1 > bridgeBox[3]) {
+            // No way at all (e.g. standing on a ledge over a big cave): also allow bridging at its own
+            // level. Only as a last resort - otherwise it fills back holes it has just dug.
+            bridgeBox[3] = p.getBlockY() - 1;
+            path = pf.find(startNode, goal).path();
+        }
+        try {
+            workStep(p, cfg, ex, goal, why, path);
+        } finally {
+            if (bridgeBox != null) bridgeBox[3] = savedTop;
+        }
+    }
+
+    private void workStep(ClientPlayerEntity p, Config cfg, ExcavationSession ex, Pathfinder.Goal goal, String why, List<Pathfinder.Node> path) {
         if (path.size() < 2) {
             workRetryTick = tick + 5; // planning is not free: don't redo a failed search every tick
             lastStatus = "No path to " + goal.x() + " " + goal.y() + " " + goal.z() + " - move closer manually";
@@ -408,7 +424,7 @@ public final class BuildExecutor {
         if (dx != 0 && dz != 0) {
             hole = world.isStandable(a.x() + dx, a.y() - 1, a.z()) ? new BlockPos(a.x(), a.y() - 1, a.z() + dz) : new BlockPos(a.x() + dx, a.y() - 1, a.z());
         }
-        if (b.y() != a.y() || !world.isStandable(support.getX(), support.getY(), support.getZ())
+        if (b.y() != a.y() || p.isTouchingWater() || !world.isStandable(support.getX(), support.getY(), support.getZ())
                 || !bridgeable(hole.getX(), hole.getY(), hole.getZ())) {
             unbridgeable.add(hole.asLong());
             workRetryTick = tick;

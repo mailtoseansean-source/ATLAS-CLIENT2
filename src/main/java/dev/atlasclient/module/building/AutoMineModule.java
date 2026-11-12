@@ -187,6 +187,9 @@ public final class AutoMineModule extends AtlasModule {
         leftOverCaves = 0;
         assist.reset(mc);
         assist.fallMargin = mode.get() == Mode.AREA ? 1 : 0;
+        // In area mode the digger plans its own (fenced, lava-aware) way back; the straight-line return
+        // dug toward lava in the deepslate test.
+        assist.returnAfterClimb = mode.get() != Mode.AREA;
         paused = false;
         int depth = areaDepth.intValue();
         areaTop = oy + (depth >= 2 ? 1 : 0);
