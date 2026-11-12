@@ -55,6 +55,9 @@ public final class SurvivalAssist {
     public Phase phase() { return phase; }
     public String failure() { return failure; }
     public boolean busy() { return phase != Phase.IDLE && phase != Phase.FAILED; }
+    /** Keeps breaking {@code pos} with the fastest tool (call every tick until it is gone); false if unbreakable. */
+    public boolean mineBlock(MinecraftClient mc, BlockPos pos, Direction face) { return mine(mc, pos, face); }
+
     /** Carries plain blocks it could place (to bridge or pillar). */
     public boolean hasBuildingBlocks(ClientPlayerEntity p) { return findBlockSlot(p) >= 0; }
 

@@ -182,6 +182,7 @@ public final class AutoMineModule extends AtlasModule {
         gaveUp.clear();
         cleanupTries.clear();
         pillarTried.clear();
+        descending = false;
         pillarFor = null;
         pillarY = Integer.MIN_VALUE;
         cleanupLeft = 0;
@@ -657,15 +658,43 @@ public final class AutoMineModule extends AtlasModule {
     // leftover like any other, mined from the top while standing on the block below).
     private BlockPos pillarFor;
     private int pillarY = Integer.MIN_VALUE;
+    private int pillarFloor;
+    private boolean descending;
     private final Set<Long> pillarTried = new HashSet<>();
 
     /** True while it is still walking to the spot under the block (nothing else this tick). */
     private boolean tickPillarReach(MinecraftClient mc, ClientPlayerEntity p) {
         BlockPos t = pillarFor;
+        if (descending) {
+            // Take the pillar back down: mine the block under the feet, drop one, again, to the floor.
+            BlockPos under = p.getBlockPos().down();
+            if (under.getY() <= pillarFloor || assist.phase() == SurvivalAssist.Phase.FAILED) {
+                descending = false;
+                pillarFor = null;
+                pillarY = Integer.MIN_VALUE;
+                return false;
+            }
+            setStatus("Area: cleaning up - taking the pillar down");
+            if (!p.isOnGround() || world.world().getBlockState(under).isAir()) return true;
+            if (world.neighbourHasFluid(under.getX(), under.getY(), under.getZ()) || !assist.mineBlock(mc, under, Direction.UP)) {
+                descending = false; // leave it (the clean-up reports it)
+                pillarFor = null;
+                pillarY = Integer.MIN_VALUE;
+                return false;
+            }
+            lastProgressTick = ticks;
+            return true;
+        }
         if (world.world().getBlockState(t).isAir() || assist.phase() == SurvivalAssist.Phase.FAILED) {
-            pillarFor = null;
-            pillarY = Integer.MIN_VALUE;
+            boolean climbed = pillarY != Integer.MIN_VALUE && assist.phase() != SurvivalAssist.Phase.FAILED;
             walker.stop();
+            if (climbed && assist.busy()) return false; // let the climb finish first
+            pillarY = Integer.MIN_VALUE;
+            if (climbed) {
+                descending = true;
+                return true;
+            }
+            pillarFor = null;
             return false;
         }
         if (pillarY != Integer.MIN_VALUE) {
@@ -703,6 +732,7 @@ public final class AutoMineModule extends AtlasModule {
             return true;
         }
         walker.stop();
+        pillarFloor = floor;
         pillarY = t.getY() - 2; // feet two below it: on the last jump it is mined as head room
         return false;
     }
