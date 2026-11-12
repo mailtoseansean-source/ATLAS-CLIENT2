@@ -346,7 +346,7 @@ public final class SurvivalAssist {
             // creep toward the edge so the side of the block below is in view
             float[] look = MovementController.lookAt(p, fillTarget.getX() + 0.5, p.getEyeY(), fillTarget.getZ() + 0.5);
             p.setYaw(look[0]);
-            mc.options.forwardKey.setPressed(true);
+            mc.options.forwardKey.setPressed(!dangerAhead(mc, p, look[0]));
             if (phaseTicks % 30 != 29) return; // if it stops short, place from where it is anyway
         }
         mc.options.forwardKey.setPressed(false);
@@ -450,7 +450,21 @@ public final class SurvivalAssist {
         ClientPlayerEntity p = mc.player;
         float[] look = MovementController.lookAt(p, x, p.getEyeY(), z);
         p.setYaw(look[0]);
-        mc.options.forwardKey.setPressed(true);
+        // Never step into lava or fire: sneaking stops falls, not walking into lava on the same level.
+        boolean safe = p.isInLava() || !dangerAhead(mc, p, look[0]);
+        mc.options.forwardKey.setPressed(safe);
+    }
+
+    /** Lava/fire at the feet or head 0.7 blocks ahead, or lava right under that spot. */
+    private static boolean dangerAhead(MinecraftClient mc, ClientPlayerEntity p, float yaw) {
+        double rad = Math.toRadians(yaw);
+        double ax = p.getX() - Math.sin(rad) * 0.7, az = p.getZ() + Math.cos(rad) * 0.7;
+        BlockPos at = BlockPos.ofFloored(ax, p.getY() + 0.1, az);
+        for (BlockPos c : new BlockPos[]{at, at.up(), at.down()}) {
+            BlockState s = mc.world.getBlockState(c);
+            if (s.getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA) || Registries.BLOCK.getId(s.getBlock()).getPath().endsWith("fire")) return true;
+        }
+        return false;
     }
 
     /** Breaks a block with the fastest tool carried. Returns false if it cannot be broken. */

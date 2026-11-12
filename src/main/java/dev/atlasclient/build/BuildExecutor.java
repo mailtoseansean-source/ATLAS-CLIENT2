@@ -261,8 +261,13 @@ public final class BuildExecutor {
                 || z < bridgeBox[4] || z > bridgeBox[5]) return false;
         if (unbridgeable.contains(BlockPos.asLong(x, y, z))) return false;
         BlockState s = world.world().getBlockState(new BlockPos(x, y, z));
-        return (s.isAir() || s.isReplaceable()) && s.getFluidState().isEmpty()
-                && !world.isDangerous(x, y, z) && !world.isDangerous(x, y - 1, z);
+        if (!(s.isAir() || s.isReplaceable()) || !s.getFluidState().isEmpty()) return false;
+        // No bridging anywhere near lava: the walk out onto the bridge and the sneaking to its edge
+        // must not be able to slip into it.
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) for (int dy = -1; dy <= 2; dy++) {
+            if (world.isDangerous(x + dx, y + dy, z + dz)) return false;
+        }
+        return true;
     }
 
     /** The world as seen by a walk that may dig through the blocks of this job and bridge holes. */
@@ -297,7 +302,7 @@ public final class BuildExecutor {
         steeredTick = tick;
         if (movement.tick(mc) == PathFollower.Status.STUCK) {
             movement.stop();
-            workRetryTick = tick + 60; // don't start the same walk again right away
+            workRetryTick = tick + 5; // replan shortly (a long wait here made every job slower)
         }
     }
 
@@ -358,13 +363,13 @@ public final class BuildExecutor {
             return;
         }
         if (tick < workRetryTick) return;
-        workRetryTick = tick + 5;
         Set<Long> digSet = pendingDigCells(ex);
         WorkWorld ww = new WorkWorld(digSet);
         Pathfinder pf = new Pathfinder(movement.fenced(ww)).maxNodes(cfg.pathNodes()).maxDrop(movement.maxDrop());
         Pathfinder.Result r = pf.find(new Pathfinder.Node(p.getBlockX(), p.getBlockY(), p.getBlockZ()), goal);
         List<Pathfinder.Node> path = r.path();
         if (path.size() < 2) {
+            workRetryTick = tick + 5; // planning is not free: don't redo a failed search every tick
             lastStatus = "No path to " + goal.x() + " " + goal.y() + " " + goal.z() + " - move closer manually";
             return;
         }

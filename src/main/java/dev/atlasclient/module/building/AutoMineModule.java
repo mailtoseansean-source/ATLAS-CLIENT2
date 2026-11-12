@@ -810,6 +810,13 @@ public final class AutoMineModule extends AtlasModule {
             // Bridge blocks only go where a later layer mines them again (or under the box): never into a
             // layer that is already done, where they would be left behind.
             int bridgeTop = cleanup ? areaBottom - 1 : layerBottom() - 1;
+            ClientPlayerEntity bp = MinecraftClient.getInstance().player;
+            if (bp != null && bp.getBlockY() - 1 > bridgeTop && bp.getBlockY() - 1 <= areaTop) {
+                // Standing above this layer's floor (at the start over an open cave, or after climbing):
+                // it may bridge at its own level to get into the box at all. Those few blocks are picked
+                // up by the clean-up pass.
+                bridgeTop = bp.getBlockY() - 1;
+            }
             executor.setBridging(Math.min(x1, x2), Math.max(x1, x2), areaBottom - 1, bridgeTop, Math.min(z1, z2), Math.max(z1, z2), unfillable);
             // ... and never leave the box (the caves around it are not part of the job).
             executor.movement().setFence(new int[]{Math.min(x1, x2), Math.max(x1, x2), areaBottom, areaTop + 2, Math.min(z1, z2), Math.max(z1, z2)});
