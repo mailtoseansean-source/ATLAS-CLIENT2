@@ -401,6 +401,10 @@ public final class SurvivalAssist {
             for (BlockPos above : new BlockPos[]{feet.up(2), feet.up(3)}) {
                 if (!open(mc, above)) {
                     mc.options.jumpKey.setPressed(false);
+                    if (fluidNext(mc, above)) {
+                        fail("Can't climb out: the block above touches lava or water at " + above.toShortString());
+                        return;
+                    }
                     if (!mine(mc, above, Direction.DOWN)) fail("Something unbreakable above the hole at " + above.toShortString());
                     return;
                 }
@@ -440,6 +444,7 @@ public final class SurvivalAssist {
         for (BlockPos c : new BlockPos[]{next.up(), next}) {
             if (!open(mc, c)) {
                 releaseKeys(mc);
+                if (fluidNext(mc, c)) { fail("The way back is next to lava or water at " + c.toShortString()); return; }
                 if (!mine(mc, c, dir.getOpposite())) fail("Something unbreakable on the way back at " + c.toShortString());
                 return;
             }
@@ -469,6 +474,12 @@ public final class SurvivalAssist {
         // Never step into lava or fire: sneaking stops falls, not walking into lava on the same level.
         boolean safe = p.isInLava() || !dangerAhead(mc, p, look[0]);
         mc.options.forwardKey.setPressed(safe);
+    }
+
+    /** A fluid (lava, water) touches this block: mining it would let the fluid in. */
+    private static boolean fluidNext(MinecraftClient mc, BlockPos pos) {
+        for (Direction d : Direction.values()) if (!mc.world.getFluidState(pos.offset(d)).isEmpty()) return true;
+        return false;
     }
 
     /** Nearest open, dry cell (with a dry or open cell below or above it) within 6 blocks: somewhere to breathe. */

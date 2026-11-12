@@ -552,6 +552,7 @@ public final class BuildExecutor {
             ExcavationPlanner.Entry ce = ex.entries().get(cand);
             BlockPos cpos = new BlockPos(ce.x(), ce.y(), ce.z());
             if (holdsPlayerOverDrop(p, ce.x(), ce.y(), ce.z())) continue; // later, from somewhere else
+            if (world.neighbourHasFluid(ce.x(), ce.y(), ce.z())) { ex.update(cand, false, true, tick); continue; } // lava/water moved next to it since planning: leave it
             BlockState cstate = world.world().getBlockState(cpos);
             if (cstate.isAir() || cstate.isReplaceable()) {
                 // Already open (cave, fallen away): done, look at the next one right away.
