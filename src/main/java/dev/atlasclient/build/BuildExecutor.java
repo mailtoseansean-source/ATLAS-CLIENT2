@@ -185,8 +185,7 @@ public final class BuildExecutor {
         ExcavationSession ex = job.excavation();
         // In water over its head: get out onto dry ground before anything else (nothing can be mined
         // from in there, and wandering about in flooded caves drowned it in the tests).
-        if (cfg.autoWalk() && miningEntry < 0 && p.isTouchingWater()
-                && world.isWater(p.getBlockX(), p.getBlockY() + 1, p.getBlockZ())) {
+        if (cfg.autoWalk() && miningEntry < 0 && (p.isSubmergedInWater() || (p.isTouchingWater() && !p.isOnGround()))) {
             getOutOfWater(mc, p, cfg);
             return;
         }
