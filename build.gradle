@@ -1,0 +1,132 @@
+plugins {
+    // "fabric-loom-remap" is Loom for obfuscated Minecraft versions (1.21.11 and older).
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // Loom adds Mojang, Fabric and Maven Central automatically. No other repositories are used.
+}
+
+// The game-independent core lives in core/ (its own standalone Gradle build for fast tests)
+// and is compiled straight into this mod. No jar-in-jar or shading is needed.
+sourceSets {
+    main {
+        java {
+            srcDir 'core/src/main/java'
+        }
+    }
+    test {
+        java {
+            srcDir 'core/src/test/java'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Automated in-game tests (Fabric client gametest): ./gradlew runClientGameTest
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "atlasclient-gametest"
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true // You must accept the Minecraft EULA (https://aka.ms/MinecraftEULA) to run game tests.
+    }
+}
+
+// Same as Fabric API's own CI: the gametest network synchronizer can stall world loading
+// ("Timeout loading world"), so it is switched off. The game itself runs on Java 21, like a
+// normal 1.21.11 launcher, even though Gradle runs on Java 25 (needed by Loom 1.19).
+loom {
+    runs {
+        matching { it.name == 'clientGameTest' }.configureEach {
+            vmArg '-Dfabric.client.gametest.disableNetworkSynchronizer=true'
+        }
+    }
+}
+tasks.matching { it.name == 'runClientGameTest' }.configureEach {
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+processResources {
+    def version = project.version
+    inputs.property "version", version
+    filesMatching("fabric.mod.json") {
+        expand "version": version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = 'UTF-8'
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+test {
+    useJUnit()
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+    from("LICENSE") {
+        rename { "${it}_${projectName}" }
+    }
+}
+
+// ./gradlew verifyRelease : checks the remapped release JAR before you install or share it.
+tasks.register('verifyRelease') {
+    group = 'verification'
+    description = 'Checks the release JAR: metadata, Minecraft target, mixin config and refmap, no test classes.'
+    dependsOn tasks.named('remapJar')
+    doLast {
+        def jarFile = tasks.named('remapJar').get().archiveFile.get().asFile
+        def tree = zipTree(jarFile)
+        def names = [] as Set
+        tree.visit { d -> if (!d.directory) names << d.relativePath.pathString }
+        def problems = []
+        if (!names.contains('fabric.mod.json')) problems << 'fabric.mod.json missing'
+        else {
+            def meta = new groovy.json.JsonSlurper().parse(tree.matching { include 'fabric.mod.json' }.singleFile)
+            if (meta.id != 'atlasclient') problems << "unexpected mod id ${meta.id}"
+            if (meta.version != project.version.toString()) problems << "version ${meta.version} != ${project.version}"
+            if (meta.depends?.minecraft != '~1.21.11') problems << "minecraft dependency is ${meta.depends?.minecraft}, expected ~1.21.11"
+            if (!(meta.mixins ?: []).contains('atlasclient.mixins.json')) problems << 'mixin config not declared'
+            if (meta.environment != 'client') problems << "environment is ${meta.environment}, expected client"
+        }
+        if (!names.contains('atlasclient.mixins.json')) problems << 'atlasclient.mixins.json missing'
+        // Mixin targets must reach the game under intermediary names: either through a refmap (legacy
+        // annotation processor) or because Loom remapped the mixin annotations directly.
+        def refmaps = names.findAll { it.endsWith('refmap.json') }
+        def mixinBytes = new String(tree.matching { include 'dev/atlasclient/mixin/MinecraftClientMixin.class' }.singleFile.bytes, 'ISO-8859-1')
+        def remappedInPlace = mixinBytes.contains('method_27022')
+        println "Mixin remapping: refmaps=${refmaps}, annotations remapped in place=${remappedInPlace}"
+        if (!refmaps && !remappedInPlace) problems << 'mixin targets are neither in a refmap nor remapped (ESP glow would be skipped)'
+        if (names.any { it.startsWith('dev/atlasclient/gametest/') }) problems << 'game-test classes leaked into the release JAR'
+        if (!names.contains('dev/atlasclient/AtlasClient.class')) problems << 'entrypoint class missing'
+        if (!names.contains('assets/atlasclient/icon.png')) problems << 'icon missing'
+        println "Release JAR: ${jarFile} (${jarFile.length()} bytes, ${names.size()} entries)"
+        if (problems) throw new GradleException('verifyRelease failed:\n - ' + problems.join('\n - '))
+        println 'verifyRelease: OK'
+    }
+}

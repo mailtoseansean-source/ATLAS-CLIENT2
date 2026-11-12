@@ -1,0 +1,9 @@
+{
+  "key.category.atlasclient.main": "Atlas Client",
+  "key.atlasclient.open_gui": "Open ClickGUI",
+  "key.atlasclient.discoveries": "Open discoveries list",
+  "key.atlasclient.build_pause": "Pause / resume AutoBuilder",
+  "key.atlasclient.pickaxe_mode": "Toggle pickaxe mode (Regular / Amethyst)",
+  "screen.atlasclient.gui": "Atlas Client",
+  "screen.atlasclient.discoveries": "Discoveries"
+}

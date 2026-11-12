@@ -1,0 +1,33 @@
+// Standalone build for the game-independent core. Runs without Minecraft:
+//   cd core && ../gradlew test
+// The Fabric mod build (../build.gradle) compiles these same sources into the mod jar.
+plugins {
+    id 'java'
+}
+
+group = 'dev.atlasclient'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Minecraft ships Gson at runtime; the core only needs it to compile and test.
+    compileOnly 'com.google.code.gson:gson:2.13.1'
+    testImplementation 'com.google.code.gson:gson:2.13.1'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnit()
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+    }
+}

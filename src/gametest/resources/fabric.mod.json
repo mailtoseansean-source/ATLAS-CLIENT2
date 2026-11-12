@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "atlasclient-gametest",
+  "version": "1.0.0",
+  "name": "Atlas Client in-game tests",
+  "description": "Client game tests for Atlas Client's AutoBuilder. Only loaded by ./gradlew runClientGameTest; not part of the release JAR.",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": ["dev.atlasclient.gametest.AtlasClientGameTest"]
+  },
+  "depends": {
+    "atlasclient": "*",
+    "fabric-api": "*"
+  }
+}

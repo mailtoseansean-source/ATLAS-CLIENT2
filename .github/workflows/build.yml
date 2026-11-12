@@ -1,0 +1,157 @@
+# Builds the installable mod JAR on GitHub's servers (they can download Minecraft and Fabric).
+# Every push: compile, run the core tests, check the JAR, and publish it as a GitHub Release
+# ("Releases" on the repository page) so it can be downloaded from any device.
+# A second job starts a real Minecraft 1.21.11 client (on a virtual screen) and runs the in-game
+# tests: first on a real dedicated server (multiplayer), then in single-player.
+name: Build mod JAR
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Loom 1.19 (used for 1.21.11) needs Gradle to run on Java 25. The mod itself is still
+      # compiled for Java 21 (options.release = 21), which is what Minecraft 1.21.11 runs on.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew build compileGametestJava verifyRelease --stacktrace --no-daemon 2>&1 | tee build.log
+
+      - name: Show what is inside the JAR
+        if: always()
+        run: |
+          JAR=$(ls build/libs/atlasclient-*.jar 2>/dev/null | grep -v sources | head -1)
+          [ -n "$JAR" ] || exit 0
+          unzip -l "$JAR" | grep -vE 'dev/atlasclient/.*\.class$' || true
+          echo '--- fabric.mod.json'; unzip -p "$JAR" fabric.mod.json
+          echo '--- atlasclient.mixins.json'; unzip -p "$JAR" atlasclient.mixins.json
+
+      - name: Report compiler errors as annotations
+        if: failure()
+        run: |
+          # Turn "path/File.java:12: error: message" lines into GitHub annotations (visible in the API and UI).
+          grep -E '\.java:[0-9]+: error: ' build.log | head -50 | while IFS= read -r line; do
+            file=$(echo "$line" | sed -E 's/^(.*\.java):([0-9]+): error: (.*)$/\1/' | sed "s#^$GITHUB_WORKSPACE/##")
+            num=$(echo "$line" | sed -E 's/^(.*\.java):([0-9]+): error: (.*)$/\2/')
+            msg=$(echo "$line" | sed -E 's/^(.*\.java):([0-9]+): error: (.*)$/\3/')
+            echo "::error file=$file,line=$num::$msg"
+          done
+          # Non-javac failures: surface the first failure lines too.
+          grep -nE 'FAILURE|What went wrong|> Could not|error:' build.log | head -20 | while IFS= read -r l; do echo "::error::$l"; done
+
+      - name: Publish JAR as a release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          TAG="v${VERSION}-build${GITHUB_RUN_NUMBER}"
+          JAR="build/libs/atlasclient-${VERSION}.jar"
+          ls -la build/libs
+          gh release create "$TAG" "$JAR" --target "$GITHUB_SHA" --title "Atlas Client ${VERSION} (build ${GITHUB_RUN_NUMBER})" \
+            --notes "Install: put atlasclient-${VERSION}.jar in the mods folder of a Minecraft 1.21.11 Fabric instance together with Fabric API. Built from commit ${GITHUB_SHA}."
+
+      - name: Upload JAR artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlasclient-jar
+          path: build/libs/atlasclient-*.jar
+
+  ingame-tests:
+    # Several real clients in parallel, one per group of tests, so a full round takes ~30-45 min.
+    name: ingame-tests (${{ matrix.suite }}${{ matrix.level && format(' L{0}', matrix.level) || '' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: mine
+          - suite: finder
+          - suite: builder
+          - suite: caves
+            level: "1"
+          - suite: caves
+            level: "2"
+          - suite: caves
+            level: "3"
+          - suite: caves
+            level: "4"
+          - suite: caves
+            level: "5"
+    env:
+      ATLAS_SUITE: ${{ matrix.suite }}
+      ATLAS_LEVEL: ${{ matrix.level }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Java 21 runs the game (like a normal 1.21.11 launcher); Java 25 runs Gradle (Loom 1.19).
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - name: Virtual screen and software OpenGL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils imagemagick > /dev/null
+
+      - name: Run the in-game tests in a real Minecraft client
+        id: run
+        run: |
+          chmod +x gradlew
+          set +e
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClientGameTest --stacktrace --no-daemon 2>&1 | tee gametest.log
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Results
+        if: always()
+        run: |
+          echo '===== Atlas in-game test report ====='
+          REPORT=$(find build/run -name atlas-gametest-report.txt 2>/dev/null | head -1)
+          if [ -n "$REPORT" ]; then cat "$REPORT"; else grep -h '\[Atlas gametest\]' gametest.log || echo 'no report written'; fi
+          echo '===== Errors and exceptions from the game log ====='
+          grep -nE 'Exception|Error|FAILED|Caused by|\[Atlas' gametest.log | grep -v 'DEBUG' | head -120 || true
+          echo '===== Screenshots ====='
+          # Small JPEG copies, base64 in the log, so the results can be read without downloading artifacts.
+          find build/run -path '*screenshots*' -name '*.png' 2>/dev/null | sort | head -12 | while IFS= read -r f; do
+            b=$( (convert "$f" -resize 800x450 -quality 60 jpg:- 2>/dev/null || ffmpeg -loglevel error -i "$f" -vf scale=800:-1 -q:v 6 -f mjpeg - 2>/dev/null) | base64 -w0)
+            echo "ATLAS_IMG $(basename "$f" .png) $b"
+          done
+          grep -h 'PASS \|FAIL ' gametest.log | sed 's/.*\[Atlas gametest\] //' | while IFS= read -r l; do
+            case "$l" in FAIL*) echo "::error::$l";; *) echo "::notice::$l";; esac
+          done
+
+      - name: Upload screenshots, logs and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingame-test-results-${{ matrix.suite }}${{ matrix.level }}
+          path: |
+            gametest.log
+            build/run/**/screenshots/**
+            build/run/**/atlas-gametest-report.txt
+            build/run/**/logs/latest.log
+            build/run/**/crash-reports/**
+          if-no-files-found: warn
+
+      - name: Fail when a test failed
+        if: steps.run.outputs.code != '0'
+        run: exit 1

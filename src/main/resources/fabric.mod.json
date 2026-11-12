@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "atlasclient",
+  "version": "${version}",
+  "name": "Atlas Client",
+  "description": "Auditable utility client: base finder, ancient debris finder, schematic AutoBuilder (.schem/.litematic) with excavation and shulker restocking, X-Ray and ESP overlays, freecam, flight, ClickGUI. Uses only data the client already has. No networking, no telemetry, no anti-cheat bypasses.",
+  "authors": ["Atlas Client contributors"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/atlasclient/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.atlasclient.AtlasClient"]
+  },
+  "mixins": ["atlasclient.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": ">=0.139.0"
+  },
+  "suggests": {
+    "litematica": "*",
+    "modmenu": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "badges": ["client"]
+    }
+  }
+}
