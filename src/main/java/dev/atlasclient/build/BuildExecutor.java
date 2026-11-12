@@ -183,6 +183,13 @@ public final class BuildExecutor {
 
     private void tickExcavation(MinecraftClient mc, ClientPlayerEntity p, Config cfg) {
         ExcavationSession ex = job.excavation();
+        // In water over its head: get out onto dry ground before anything else (nothing can be mined
+        // from in there, and wandering about in flooded caves drowned it in the tests).
+        if (cfg.autoWalk() && miningEntry < 0 && p.isTouchingWater()
+                && world.isWater(p.getBlockX(), p.getBlockY() + 1, p.getBlockZ())) {
+            getOutOfWater(mc, p, cfg);
+            return;
+        }
         if (miningEntry >= 0) {
             ExcavationPlanner.Entry e = ex.entries().get(miningEntry);
             BlockPos pos = new BlockPos(e.x(), e.y(), e.z());
@@ -295,6 +302,37 @@ public final class BuildExecutor {
 
     private static final boolean WALK_WHILE_MINING = false;
     private long steeredTick = -1;
+    private BlockPos dryTarget;
+
+    private void getOutOfWater(MinecraftClient mc, ClientPlayerEntity p, Config cfg) {
+        if (movement.active() && dryTarget != null) {
+            steer(mc);
+            lastStatus = "Getting out of the water";
+            return;
+        }
+        int px = p.getBlockX(), py = p.getBlockY(), pz = p.getBlockZ();
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (int dx = -8; dx <= 8; dx++) for (int dz = -8; dz <= 8; dz++) for (int dy = -2; dy <= 4; dy++) {
+            int x = px + dx, y = py + dy, z = pz + dz;
+            if (!world.isStandable(x, y - 1, z) || !world.isPassable(x, y, z) || !world.isPassable(x, y + 1, z)) continue;
+            if (world.isWater(x, y, z) || world.isWater(x, y + 1, z) || world.isDangerous(x, y, z) || world.isDangerous(x, y - 1, z)) continue;
+            double d = dx * dx + dz * dz + dy * dy * 2;
+            if (d < bestD) { bestD = d; best = new BlockPos(x, y, z); }
+        }
+        if (best == null) {
+            lastStatus = "In water - no dry ground nearby";
+            return;
+        }
+        dryTarget = best;
+        movement.navigate(world, p, new Pathfinder.Goal(best.getX(), best.getY(), best.getZ(), 1.3), cfg.sprint(), cfg.pathNodes());
+        if (!movement.active()) {
+            lastStatus = "In water - no way out to " + best.toShortString();
+            return;
+        }
+        steer(mc);
+        lastStatus = "Getting out of the water";
+    }
 
     /**
      * The block is (part of) what the player stands on and below it is not solid ground: mining it would
