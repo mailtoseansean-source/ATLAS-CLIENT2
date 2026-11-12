@@ -159,7 +159,7 @@ public final class SurvivalAssist {
             mc.options.jumpKey.setPressed(true);
             mc.options.sprintKey.setPressed(false);
             // Swim toward the nearest spot with air for the head (straight up may be a flooded ceiling).
-            BlockPos air = nearestAir(mc, p.getBlockPos());
+            BlockPos air = nearestAir(mc, BlockPos.ofFloored(p.getX(), p.getEyeY(), p.getZ()));
             if (air != null && (Math.abs(air.getX() + 0.5 - p.getX()) > 0.3 || Math.abs(air.getZ() + 0.5 - p.getZ()) > 0.3)) {
                 float[] look = MovementController.lookAt(p, air.getX() + 0.5, air.getY() + 0.5, air.getZ() + 0.5);
                 p.setYaw(look[0]);
@@ -487,20 +487,42 @@ public final class SurvivalAssist {
         return false;
     }
 
-    /** Nearest open, dry cell (with a dry or open cell below or above it) within 6 blocks: somewhere to breathe. */
+    /**
+     * The next cell to swim to on the shortest way (through water and air, never through blocks) to a
+     * cell with air for the head, searched up to ~600 cells. Null if there is none in range.
+     */
     private static BlockPos nearestAir(MinecraftClient mc, BlockPos from) {
-        BlockPos best = null;
-        double bestD = Double.MAX_VALUE;
-        for (int dy = 0; dy <= 6; dy++) for (int dx = -6; dx <= 6; dx++) for (int dz = -6; dz <= 6; dz++) {
-            BlockPos c = from.add(dx, dy, dz);
-            BlockState s = mc.world.getBlockState(c);
-            if (!s.isAir() || !s.getFluidState().isEmpty()) continue;
-            if (!mc.world.getBlockState(c.down()).getFluidState().isEmpty() && !mc.world.getBlockState(c.down()).isAir()
-                    && mc.world.getBlockState(c.down()).getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA)) continue;
-            double d = dx * dx + dz * dz + dy * dy * 0.5;
-            if (d < bestD) { bestD = d; best = c; }
+        java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.Map<BlockPos, BlockPos> parent = new java.util.HashMap<>();
+        queue.add(from);
+        parent.put(from, from);
+        BlockPos found = null;
+        while (!queue.isEmpty() && parent.size() < 600) {
+            BlockPos c = queue.poll();
+            if (!c.equals(from)) {
+                BlockState s = mc.world.getBlockState(c);
+                if (s.getFluidState().isEmpty() && (s.isAir() || s.getCollisionShape(mc.world, c).isEmpty())) {
+                    found = c;
+                    break;
+                }
+            }
+            // up first: swimming up is the quickest way to air
+            for (Direction d : new Direction[]{Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN}) {
+                BlockPos n = c.offset(d);
+                if (parent.containsKey(n) || Math.abs(n.getX() - from.getX()) > 8 || Math.abs(n.getZ() - from.getZ()) > 8
+                        || n.getY() < from.getY() - 3 || n.getY() > from.getY() + 10) continue;
+                BlockState ns = mc.world.getBlockState(n);
+                boolean open = ns.getCollisionShape(mc.world, n).isEmpty() && !ns.getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA);
+                if (!open) continue;
+                parent.put(n, c);
+                queue.add(n);
+            }
         }
-        return best;
+        if (found == null) return null;
+        // walk back to the step right after the start
+        BlockPos step = found;
+        while (!parent.get(step).equals(from)) step = parent.get(step);
+        return step;
     }
 
     /** Lava/fire at the feet or head 0.7 blocks ahead, or lava right under that spot. */

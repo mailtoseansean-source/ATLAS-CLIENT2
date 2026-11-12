@@ -36,7 +36,8 @@ public final class FencedWorld implements PathWorld {
     @Override public boolean isPassable(int x, int y, int z) {
         if (!inside(x, y, z) || !inner.isPassable(x, y, z)) return false;
         // Two blocks of water: the head would be under water (drowning in flooded caves).
-        return !(dry && !deepWaterOk && inner.isWater(x, y, z) && inner.isWater(x, y + 1, z));
+        // and the surface of a deep pool (water under water): it would sink in.
+        return !(dry && !deepWaterOk && inner.isWater(x, y, z) && (inner.isWater(x, y + 1, z) || inner.isWater(x, y - 1, z)));
     }
     @Override public boolean isStandable(int x, int y, int z) { return inner.isStandable(x, y, z); }
     @Override public boolean isDangerous(int x, int y, int z) { return inner.isDangerous(x, y, z); }
