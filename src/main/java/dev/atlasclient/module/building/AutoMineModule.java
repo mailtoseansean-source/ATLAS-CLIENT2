@@ -181,6 +181,9 @@ public final class AutoMineModule extends AtlasModule {
         hazardCells.clear();
         gaveUp.clear();
         cleanupTries.clear();
+        pillarTried.clear();
+        pillarFor = null;
+        pillarY = Integer.MIN_VALUE;
         cleanupLeft = 0;
         turns = 0;
         dugBeforeTurn = 0;
@@ -280,6 +283,10 @@ public final class AutoMineModule extends AtlasModule {
         if (world == null || world.world() != mc.world) world = new McWorld(mc.world, AutoBuilderModule.get().resolver());
         // Eat, fill floor gaps, climb back after a fall: those come first and pause the digging.
         int workY = mode.get() == Mode.TUNNEL ? oy : (cleanup ? areaBottom : layerBottom());
+        if (cleanup && pillarFor != null) {
+            if (tickPillarReach(mc, p)) return;
+            if (pillarY != Integer.MIN_VALUE) workY = pillarY; // the assist "climbs back" up to there
+        }
         double homeX, homeZ;
         if (mode.get() == Mode.TUNNEL) {
             int k = Math.max(0, slice - 1);
@@ -645,6 +652,61 @@ public final class AutoMineModule extends AtlasModule {
      * the floor over caves) is mined, highest first, a few neighbouring blocks per job. A block that
      * fails twice is left and reported.
      */
+    // ---- clean-up: blocks left hanging high up (everything under them already dug) are reached by
+    // pillaring up under them, as a player would; the pillar is dug away again afterwards (it is a
+    // leftover like any other, mined from the top while standing on the block below).
+    private BlockPos pillarFor;
+    private int pillarY = Integer.MIN_VALUE;
+    private final Set<Long> pillarTried = new HashSet<>();
+
+    /** True while it is still walking to the spot under the block (nothing else this tick). */
+    private boolean tickPillarReach(MinecraftClient mc, ClientPlayerEntity p) {
+        BlockPos t = pillarFor;
+        if (world.world().getBlockState(t).isAir() || assist.phase() == SurvivalAssist.Phase.FAILED) {
+            pillarFor = null;
+            pillarY = Integer.MIN_VALUE;
+            walker.stop();
+            return false;
+        }
+        if (pillarY != Integer.MIN_VALUE) {
+            if (!assist.busy() && p.getBlockY() >= pillarY - assist.fallMargin) {
+                // up there and the block is still standing (could not be mined as head room): give up on it
+                gaveUp.add(t.asLong());
+                pillarFor = null;
+                pillarY = Integer.MIN_VALUE;
+            }
+            return false;
+        }
+        int floor = Integer.MIN_VALUE;
+        for (int y = t.getY() - 1; y >= areaBottom - 1; y--) {
+            if (world.isStandable(t.getX(), y, t.getZ())) { floor = y; break; }
+            if (world.isDangerous(t.getX(), y, t.getZ()) || world.isWater(t.getX(), y, t.getZ())) break;
+        }
+        if (floor == Integer.MIN_VALUE || t.getY() - 2 - (floor + 1) > 10) {
+            gaveUp.add(t.asLong());
+            pillarFor = null;
+            return false;
+        }
+        boolean there = p.getBlockY() == floor + 1 && Math.abs(p.getX() - (t.getX() + 0.5)) < 0.45 && Math.abs(p.getZ() - (t.getZ() + 0.5)) < 0.45;
+        if (!there) {
+            if (!walker.active()) {
+                walker.setMaxDrop(3);
+                walker.navigate(world, p, new Pathfinder.Goal(t.getX(), floor + 1, t.getZ(), 0.4), false, 3000);
+                if (!walker.active()) {
+                    gaveUp.add(t.asLong());
+                    pillarFor = null;
+                    return false;
+                }
+            }
+            if (walker.tick(mc) == PathFollower.Status.STUCK) walker.stop();
+            setStatus("Area: cleaning up - going under a block left high up");
+            return true;
+        }
+        walker.stop();
+        pillarY = t.getY() - 2; // feet two below it: on the last jump it is mined as head room
+        return false;
+    }
+
     private boolean nextCleanup() {
         List<long[]> left = leftovers();
         cleanupLeft = left.size();
@@ -671,7 +733,16 @@ public final class AutoMineModule extends AtlasModule {
         for (PlacedBlock c : cells) {
             long key = BlockPos.asLong(c.x(), c.y(), c.z());
             int tries = cleanupTries.merge(key, 1, Integer::sum);
-            if (tries > 2) gaveUp.add(key);
+            if (tries > 2) {
+                // Out of reach twice: before giving up, try pillaring up under it (once per block).
+                if (c.x() == best[0] && c.y() == best[1] && c.z() == best[2] && pillarTried.add(key)
+                        && assist.hasBuildingBlocks(MinecraftClient.getInstance().player)) {
+                    pillarFor = new BlockPos(c.x(), c.y(), c.z());
+                    pillarY = Integer.MIN_VALUE;
+                    return false;
+                }
+                gaveUp.add(key);
+            }
         }
         cells.removeIf(c -> gaveUp.contains(BlockPos.asLong(c.x(), c.y(), c.z())));
         if (cells.isEmpty()) return false; // try again next tick with what is left

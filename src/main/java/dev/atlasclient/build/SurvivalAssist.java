@@ -55,6 +55,8 @@ public final class SurvivalAssist {
     public Phase phase() { return phase; }
     public String failure() { return failure; }
     public boolean busy() { return phase != Phase.IDLE && phase != Phase.FAILED; }
+    /** Carries plain blocks it could place (to bridge or pillar). */
+    public boolean hasBuildingBlocks(ClientPlayerEntity p) { return findBlockSlot(p) >= 0; }
 
     /** Eat when food is at or below this (20 = full). */
     public int eatAt = 14;
