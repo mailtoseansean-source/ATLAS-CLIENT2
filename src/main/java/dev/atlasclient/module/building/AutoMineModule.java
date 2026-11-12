@@ -813,15 +813,8 @@ public final class AutoMineModule extends AtlasModule {
             // Bridge blocks only go where a later layer mines them again (or under the box): never into a
             // layer that is already done, where they would be left behind.
             int bridgeTop = cleanup ? areaBottom - 1 : layerBottom() - 1;
-            ClientPlayerEntity bp = MinecraftClient.getInstance().player;
-            boolean outside = bp != null && (bp.getBlockX() < Math.min(x1, x2) || bp.getBlockX() > Math.max(x1, x2)
-                    || bp.getBlockZ() < Math.min(z1, z2) || bp.getBlockZ() > Math.max(z1, z2));
-            if (outside && bp.getBlockY() - 1 > bridgeTop && bp.getBlockY() - 1 <= areaTop) {
-                // Still at the start spot, outside the box, with an open cave in front: it may bridge at
-                // its own level to get in at all. (Only from outside: inside the box this made it fill
-                // back the holes it had just dug.) Those few blocks are picked up by the clean-up pass.
-                bridgeTop = bp.getBlockY() - 1;
-            }
+            // (Bridging at its own level, e.g. from the start spot over an open cave, is a last resort
+            // inside BuildExecutor when there is no path at all.)
             executor.setBridging(Math.min(x1, x2), Math.max(x1, x2), areaBottom - 1, bridgeTop, Math.min(z1, z2), Math.max(z1, z2), unfillable);
             // ... and never leave the box (the caves around it are not part of the job).
             executor.movement().setFence(new int[]{Math.min(x1, x2), Math.max(x1, x2), areaBottom, areaTop + 2, Math.min(z1, z2), Math.max(z1, z2)});

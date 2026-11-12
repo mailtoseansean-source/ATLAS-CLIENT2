@@ -144,6 +144,13 @@ public final class Pathfinder {
 
     private static final double DANGER_COST = 8.0;
 
+    private boolean dangerNear(int x, int y, int z, int r) {
+        for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) for (int dy = -1; dy <= 1; dy++) {
+            if (world.isDangerous(x + dx, y + dy, z + dz)) return true;
+        }
+        return false;
+    }
+
     private boolean supported(int x, int y, int z) {
         return world.isStandable(x, y - 1, z) || world.isWater(x, y, z) || world.isWater(x, y - 1, z);
     }
@@ -187,8 +194,8 @@ public final class Pathfinder {
                     int ny = n.y() - drop;
                     if (!bodyFits(nx, ny, nz)) break;
                     if (supported(nx, ny, nz)) {
-                        // a drop can't be steered: never land right next to lava
-                        if (besideDanger(nx, ny, nz)) break;
+                        // a drop can't be steered: never land within 2 blocks of lava
+                        if (besideDanger(nx, ny, nz) || (drop > 1 && dangerNear(nx, ny, nz, 2))) break;
                         out.add(new Move(new Node(nx, ny, nz), base + drop * 0.5 + (drop > 2 ? 2 : 0) + world.moveCost(nx, ny, nz)));
                         break;
                     }

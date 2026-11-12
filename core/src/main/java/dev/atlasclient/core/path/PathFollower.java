@@ -84,7 +84,9 @@ public final class PathFollower {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         boolean jump = !flying && dy > 0.5 && horiz < 1.6;
         boolean slowDown = horiz < 0.6;
-        return new Intent(yaw, horiz > 0.15, jump, false, sprint && !slowDown && dy <= 0.5,
+        // Never sprint off a drop: the run-up carries the player past the landing spot.
+        boolean dropAhead = dy < -1.2 || (index + 1 < path.size() && path.get(index + 1).y() < target.y() - 1);
+        return new Intent(yaw, horiz > 0.15, jump, false, sprint && !slowDown && !dropAhead && dy <= 0.5,
                 flying && dy > 0.3, flying && dy < -0.3);
     }
 

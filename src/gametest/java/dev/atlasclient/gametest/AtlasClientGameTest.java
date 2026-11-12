@@ -755,7 +755,8 @@ public class AtlasClientGameTest implements FabricClientGameTest {
             m.stopHealth.set(0.0);
             m.setEnabled(true);
         });
-        int t = 0, lowest = Integer.MAX_VALUE, deaths = 0, lastDangerLog = -1000, lavaTouches = 0;
+        int t = 0, lowest = Integer.MAX_VALUE, deaths = 0, lastDangerLog = -1000, lavaTouches = 0, lastFallLog = -1000;
+        double lastY = Double.NaN;
         float minHealth = 20f;
         boolean wasDead = false;
         while (t < level.maxTicks() && ctx.computeOnClient(mc -> AutoMineModule.get().isEnabled())) {
@@ -768,6 +769,14 @@ public class AtlasClientGameTest implements FabricClientGameTest {
                 System.out.println("[Atlas gametest] ...   real caves L" + level.number() + " after " + t + " ticks: " + st);
                 if (st.contains("No path") || st.contains("Repositioning")) System.out.println("[Atlas gametest] ...   " + ctx.computeOnClient(AtlasClientGameTest::around));
             }
+            double yNow = ctx.computeOnClient(mc -> mc.player.getY());
+            if (lastY - yNow >= 2.5 && t - lastFallLog >= 40) {
+                lastFallLog = t;
+                final double fromY = lastY;
+                System.out.println("[Atlas gametest] ...   real caves L" + level.number() + " tick " + t + ": dropped from " + fromY + " - "
+                        + ctx.computeOnClient(mc -> AutoMineModule.get().debugStatus() + " | " + around(mc)));
+            }
+            if (t % 20 == 0) lastY = yNow;
             String danger = ctx.computeOnClient(mc -> mc.player.isDead() ? null
                     : mc.player.isInLava() ? "in lava" : mc.player.isOnFire() ? "on fire"
                     : mc.player.getHealth() < 10 ? "health low" : null);
