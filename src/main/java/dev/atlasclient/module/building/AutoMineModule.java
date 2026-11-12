@@ -811,10 +811,12 @@ public final class AutoMineModule extends AtlasModule {
             // layer that is already done, where they would be left behind.
             int bridgeTop = cleanup ? areaBottom - 1 : layerBottom() - 1;
             ClientPlayerEntity bp = MinecraftClient.getInstance().player;
-            if (bp != null && bp.getBlockY() - 1 > bridgeTop && bp.getBlockY() - 1 <= areaTop) {
-                // Standing above this layer's floor (at the start over an open cave, or after climbing):
-                // it may bridge at its own level to get into the box at all. Those few blocks are picked
-                // up by the clean-up pass.
+            boolean outside = bp != null && (bp.getBlockX() < Math.min(x1, x2) || bp.getBlockX() > Math.max(x1, x2)
+                    || bp.getBlockZ() < Math.min(z1, z2) || bp.getBlockZ() > Math.max(z1, z2));
+            if (outside && bp.getBlockY() - 1 > bridgeTop && bp.getBlockY() - 1 <= areaTop) {
+                // Still at the start spot, outside the box, with an open cave in front: it may bridge at
+                // its own level to get in at all. (Only from outside: inside the box this made it fill
+                // back the holes it had just dug.) Those few blocks are picked up by the clean-up pass.
                 bridgeTop = bp.getBlockY() - 1;
             }
             executor.setBridging(Math.min(x1, x2), Math.max(x1, x2), areaBottom - 1, bridgeTop, Math.min(z1, z2), Math.max(z1, z2), unfillable);
@@ -916,6 +918,11 @@ public final class AutoMineModule extends AtlasModule {
         String exec = executor == null ? "" : executor.status();
         return String.format(Locale.ROOT, "%s %d%s blocks, %d ores%s", facingName, slice, len > 0 ? "/" + len : "", oresMined,
                 exec.isEmpty() ? "" : " - " + exec);
+    }
+
+    /** Full status including everything the digger reports (for logs and tests). */
+    public String debugStatus() {
+        return status() + (executor == null ? "" : " [" + executor.status() + "; assist " + assist.phase() + "]");
     }
 
     /** What the digger is doing, only when it is not plain digging (walking, bridging, no path...). */

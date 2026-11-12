@@ -13,7 +13,7 @@ public final class FencedWorld implements PathWorld {
         this(inner, minX, maxX, minY, maxY, minZ, maxZ, false);
     }
 
-    /** @param dry also keep out of water (nothing can be mined from inside it) */
+    /** @param dry stay out of water where possible (nothing can be mined from inside it); still allowed, at a cost, so it can get out */
     public FencedWorld(PathWorld inner, int minX, int maxX, int minY, int maxY, int minZ, int maxZ, boolean dry) {
         this.inner = inner;
         this.dry = dry;
@@ -30,11 +30,15 @@ public final class FencedWorld implements PathWorld {
     }
 
     @Override public boolean isPassable(int x, int y, int z) {
-        return inside(x, y, z) && inner.isPassable(x, y, z) && !(dry && inner.isWater(x, y, z));
+        return inside(x, y, z) && inner.isPassable(x, y, z);
     }
     @Override public boolean isStandable(int x, int y, int z) { return inner.isStandable(x, y, z); }
     @Override public boolean isDangerous(int x, int y, int z) { return inner.isDangerous(x, y, z); }
     @Override public boolean isWater(int x, int y, int z) { return inner.isWater(x, y, z); }
     @Override public boolean isLoaded(int x, int z) { return inner.isLoaded(x, z); }
-    @Override public double moveCost(int x, int y, int z) { return inner.moveCost(x, y, z); }
+    @Override public double moveCost(int x, int y, int z) {
+        double c = inner.moveCost(x, y, z);
+        if (dry && (inner.isWater(x, y, z) || inner.isWater(x, y + 1, z))) c += 6;
+        return c;
+    }
 }

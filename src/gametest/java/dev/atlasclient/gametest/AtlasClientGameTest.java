@@ -508,7 +508,7 @@ public class AtlasClientGameTest implements FabricClientGameTest {
             t += 5;
             if (t % 200 == 0) server.runCommand("kill @e[type=item]");
             if (t % 2000 == 0) {
-                String st = ctx.computeOnClient(mc -> AutoMineModule.get().status());
+                String st = ctx.computeOnClient(mc -> AutoMineModule.get().debugStatus());
                 System.out.println("[Atlas gametest] ...   area after " + t + " ticks: " + st);
                 if (st.contains("No path") || st.contains("Repositioning")) System.out.println("[Atlas gametest] ...   " + ctx.computeOnClient(AtlasClientGameTest::around));
             }
@@ -763,7 +763,7 @@ public class AtlasClientGameTest implements FabricClientGameTest {
             t += 5;
             if (t % 200 == 0) server.runCommand("kill @e[type=!player]");
             if (t % 2000 == 0) {
-                String st = ctx.computeOnClient(mc -> AutoMineModule.get().status() + String.format(java.util.Locale.ROOT,
+                String st = ctx.computeOnClient(mc -> AutoMineModule.get().debugStatus() + String.format(java.util.Locale.ROOT,
                         " | at %.1f %.1f %.1f, health %.1f", mc.player.getX(), mc.player.getY(), mc.player.getZ(), mc.player.getHealth()));
                 System.out.println("[Atlas gametest] ...   real caves L" + level.number() + " after " + t + " ticks: " + st);
                 if (st.contains("No path") || st.contains("Repositioning")) System.out.println("[Atlas gametest] ...   " + ctx.computeOnClient(AtlasClientGameTest::around));
