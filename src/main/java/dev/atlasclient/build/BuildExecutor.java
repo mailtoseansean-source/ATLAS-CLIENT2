@@ -305,6 +305,7 @@ public final class BuildExecutor {
         int x0 = (int) Math.floor(p.getX() - 0.3), x1 = (int) Math.floor(p.getX() + 0.3);
         int z0 = (int) Math.floor(p.getZ() - 0.3), z1 = (int) Math.floor(p.getZ() + 0.3);
         if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+        for (int d = 1; d <= 8; d++) if (world.isDangerous(x, y - d, z)) return true; // lava somewhere below
         return !world.isStandable(x, y - 1, z) && !world.isWater(x, y - 1, z);
     }
 
