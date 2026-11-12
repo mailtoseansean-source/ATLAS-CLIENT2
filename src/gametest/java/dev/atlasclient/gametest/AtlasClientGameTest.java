@@ -474,7 +474,7 @@ public class AtlasClientGameTest implements FabricClientGameTest {
         });
         server.runCommand("gamemode survival @a");
         server.runCommand("clear @a");
-        server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]");
+        server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]"); server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]"); // a spare: ~8000 blocks is about one pickaxe's life
         server.runCommand("give @a minecraft:cooked_beef 16");
         server.runCommand("give @a minecraft:cobblestone 64");
         server.runCommand("effect give @a minecraft:haste infinite 1 true");
@@ -736,7 +736,7 @@ public class AtlasClientGameTest implements FabricClientGameTest {
             server.runCommand("give @a minecraft:cooked_beef 16");
         } else {
             for (int i = 0; i < 2; i++) {
-                server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]");
+                server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]"); server.runCommand("give @a minecraft:netherite_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5,\"minecraft:unbreaking\":3}]");
             }
             server.runCommand("give @a minecraft:netherite_shovel[minecraft:enchantments={\"minecraft:efficiency\":5}]");
             server.runCommand("give @a minecraft:cooked_beef 32");

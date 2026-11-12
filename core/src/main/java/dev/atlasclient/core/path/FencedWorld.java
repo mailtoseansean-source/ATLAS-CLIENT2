@@ -38,7 +38,8 @@ public final class FencedWorld implements PathWorld {
     @Override public boolean isLoaded(int x, int z) { return inner.isLoaded(x, z); }
     @Override public double moveCost(int x, int y, int z) {
         double c = inner.moveCost(x, y, z);
-        if (dry && (inner.isWater(x, y, z) || inner.isWater(x, y + 1, z))) c += 6;
+        if (dry && inner.isWater(x, y, z)) c += 6;
+        if (dry && inner.isWater(x, y + 1, z)) c += 40; // head under water: only to get out of it
         return c;
     }
 }

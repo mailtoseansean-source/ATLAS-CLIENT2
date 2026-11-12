@@ -151,8 +151,18 @@ public final class SurvivalAssist {
             // Drop whatever it was doing: a held sneak key (filling, pillaring) sinks the player.
             if (phase == Phase.FILLING && softFill) { fillFailed = true; phase = Phase.IDLE; }
             mc.options.sneakKey.setPressed(false);
-            mc.options.forwardKey.setPressed(false);
             mc.options.jumpKey.setPressed(true);
+            mc.options.sprintKey.setPressed(false);
+            // Swim toward the nearest spot with air for the head (straight up may be a flooded ceiling).
+            BlockPos air = nearestAir(mc, p.getBlockPos());
+            if (air != null && (Math.abs(air.getX() + 0.5 - p.getX()) > 0.3 || Math.abs(air.getZ() + 0.5 - p.getZ()) > 0.3)) {
+                float[] look = MovementController.lookAt(p, air.getX() + 0.5, air.getY() + 0.5, air.getZ() + 0.5);
+                p.setYaw(look[0]);
+                p.setPitch(look[1]);
+                mc.options.forwardKey.setPressed(true);
+            } else {
+                mc.options.forwardKey.setPressed(false);
+            }
             swimming = true;
             return true;
         } else if (swimming) {
@@ -459,6 +469,22 @@ public final class SurvivalAssist {
         // Never step into lava or fire: sneaking stops falls, not walking into lava on the same level.
         boolean safe = p.isInLava() || !dangerAhead(mc, p, look[0]);
         mc.options.forwardKey.setPressed(safe);
+    }
+
+    /** Nearest open, dry cell (with a dry or open cell below or above it) within 6 blocks: somewhere to breathe. */
+    private static BlockPos nearestAir(MinecraftClient mc, BlockPos from) {
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (int dy = 0; dy <= 6; dy++) for (int dx = -6; dx <= 6; dx++) for (int dz = -6; dz <= 6; dz++) {
+            BlockPos c = from.add(dx, dy, dz);
+            BlockState s = mc.world.getBlockState(c);
+            if (!s.isAir() || !s.getFluidState().isEmpty()) continue;
+            if (!mc.world.getBlockState(c.down()).getFluidState().isEmpty() && !mc.world.getBlockState(c.down()).isAir()
+                    && mc.world.getBlockState(c.down()).getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA)) continue;
+            double d = dx * dx + dz * dz + dy * dy * 0.5;
+            if (d < bestD) { bestD = d; best = c; }
+        }
+        return best;
     }
 
     /** Lava/fire at the feet or head 0.7 blocks ahead, or lava right under that spot. */

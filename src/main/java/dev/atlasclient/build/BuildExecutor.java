@@ -296,6 +296,18 @@ public final class BuildExecutor {
     private static final boolean WALK_WHILE_MINING = false;
     private long steeredTick = -1;
 
+    /**
+     * The block is (part of) what the player stands on and below it is not solid ground: mining it would
+     * drop the player, maybe a long way (the deepslate test: into a lava lake). A 1-block step down is fine.
+     */
+    private boolean holdsPlayerOverDrop(ClientPlayerEntity p, int x, int y, int z) {
+        if (y != p.getBlockY() - 1) return false;
+        int x0 = (int) Math.floor(p.getX() - 0.3), x1 = (int) Math.floor(p.getX() + 0.3);
+        int z0 = (int) Math.floor(p.getZ() - 0.3), z1 = (int) Math.floor(p.getZ() + 0.3);
+        if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+        return !world.isStandable(x, y - 1, z) && !world.isWater(x, y - 1, z);
+    }
+
     /** Moves along the current path, once per game tick. */
     private void steer(MinecraftClient mc) {
         if (steeredTick == tick) return;
@@ -515,6 +527,7 @@ public final class BuildExecutor {
                 ExcavationPlanner.Entry ce = ex.entries().get(cand);
                 BlockPos cpos = new BlockPos(ce.x(), ce.y(), ce.z());
                 if (noAreaCells.contains(cpos.asLong())) continue;
+                if (holdsPlayerOverDrop(p, ce.x(), ce.y(), ce.z())) continue;
                 BlockState cstate = world.world().getBlockState(cpos);
                 if (cstate.isAir() || cstate.isReplaceable()) continue;
                 java.util.function.Predicate<Integer> exposed = f -> {
@@ -537,6 +550,7 @@ public final class BuildExecutor {
         for (int cand : (idx >= 0 ? List.<Integer>of() : inReach)) {
             ExcavationPlanner.Entry ce = ex.entries().get(cand);
             BlockPos cpos = new BlockPos(ce.x(), ce.y(), ce.z());
+            if (holdsPlayerOverDrop(p, ce.x(), ce.y(), ce.z())) continue; // later, from somewhere else
             BlockState cstate = world.world().getBlockState(cpos);
             if (cstate.isAir() || cstate.isReplaceable()) {
                 // Already open (cave, fallen away): done, look at the next one right away.
