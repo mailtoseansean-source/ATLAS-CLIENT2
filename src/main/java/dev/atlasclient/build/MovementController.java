@@ -46,7 +46,10 @@ public final class MovementController {
 
     /** {@code world}, limited to the fence if there is one. */
     public dev.atlasclient.core.path.PathWorld fenced(dev.atlasclient.core.path.PathWorld world) {
-        return fence == null ? world : new dev.atlasclient.core.path.FencedWorld(world, fence[0], fence[1], fence[2], fence[3], fence[4], fence[5], true);
+        if (fence == null) return world;
+        net.minecraft.client.network.ClientPlayerEntity p = net.minecraft.client.MinecraftClient.getInstance().player;
+        return new dev.atlasclient.core.path.FencedWorld(world, fence[0], fence[1], fence[2], fence[3], fence[4], fence[5], true)
+                .deepWaterOk(p != null && p.isTouchingWater());
     }
 
     public void navigate(McWorld world, ClientPlayerEntity p, Pathfinder.Goal g, boolean sprint, int maxNodes) {

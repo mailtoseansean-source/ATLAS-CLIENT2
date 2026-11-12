@@ -99,6 +99,18 @@ public final class McWorld implements WorldProbe, ExcavationPlanner.Probe, PathW
                 return true;
             }
         }
+        return lavaUnder(x, y, z);
+    }
+
+    /**
+     * Lava up to 3 blocks below this block or the 8 around it: it is part of the roof over a lava lake.
+     * Kept, so there is always ground between the player and the lava (the deepslate cave test fell
+     * through a thin floor into a lava lake).
+     */
+    public boolean lavaUnder(int x, int y, int z) {
+        for (int dy = 1; dy <= 3; dy++) for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            if (at(x + dx, y - dy, z + dz).getFluidState().isIn(FluidTags.LAVA)) return true;
+        }
         return false;
     }
 

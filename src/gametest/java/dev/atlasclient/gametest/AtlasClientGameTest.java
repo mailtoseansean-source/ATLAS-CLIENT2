@@ -546,6 +546,8 @@ public class AtlasClientGameTest implements FabricClientGameTest {
                     if (st.isAir()) { open++; continue; }
                     boolean nearLava = false;
                     for (net.minecraft.util.math.Direction d : net.minecraft.util.math.Direction.values()) if (lava.contains(c.offset(d))) nearLava = true;
+                    // the roof over lava (up to 3 above, 3x3) is kept on purpose
+                    for (int dy = 1; dy <= 3; dy++) for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) if (lava.contains(c.add(dx, -dy, dz))) nearLava = true;
                     if (nearLava) { keptNearLava++; continue; }
                     if (h == bottom && overCave) { keptOverCave++; continue; }
                     unexpected++;
@@ -826,6 +828,10 @@ public class AtlasClientGameTest implements FabricClientGameTest {
                 boolean nearFluid = false;
                 for (net.minecraft.util.math.Direction d : net.minecraft.util.math.Direction.values()) {
                     if (!w.getFluidState(c.offset(d)).isEmpty()) nearFluid = true;
+                }
+                // Auto Mine also keeps the roof over lava (lava up to 3 below, 3x3): on purpose.
+                for (int dy = 1; dy <= 3 && !nearFluid; dy++) for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                    if (w.getFluidState(c.add(dx, -dy, dz)).isIn(net.minecraft.registry.tag.FluidTags.LAVA)) nearFluid = true;
                 }
                 if (nearFluid) { keptFluid++; continue; }
                 if (h == bottom && !w.getBlockState(c.down()).isSolidBlock(w, c.down())) { keptFloor++; continue; }

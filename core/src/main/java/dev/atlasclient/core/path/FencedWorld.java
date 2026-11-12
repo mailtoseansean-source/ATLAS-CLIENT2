@@ -8,6 +8,10 @@ public final class FencedWorld implements PathWorld {
     private final PathWorld inner;
     private final int minX, maxX, minY, maxY, minZ, maxZ;
     private final boolean dry;
+    private boolean deepWaterOk;
+
+    /** Allow water deeper than one block (only to get out of it when already in water). */
+    public FencedWorld deepWaterOk(boolean ok) { this.deepWaterOk = ok; return this; }
 
     public FencedWorld(PathWorld inner, int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
         this(inner, minX, maxX, minY, maxY, minZ, maxZ, false);
@@ -30,7 +34,9 @@ public final class FencedWorld implements PathWorld {
     }
 
     @Override public boolean isPassable(int x, int y, int z) {
-        return inside(x, y, z) && inner.isPassable(x, y, z);
+        if (!inside(x, y, z) || !inner.isPassable(x, y, z)) return false;
+        // Two blocks of water: the head would be under water (drowning in flooded caves).
+        return !(dry && !deepWaterOk && inner.isWater(x, y, z) && inner.isWater(x, y + 1, z));
     }
     @Override public boolean isStandable(int x, int y, int z) { return inner.isStandable(x, y, z); }
     @Override public boolean isDangerous(int x, int y, int z) { return inner.isDangerous(x, y, z); }
